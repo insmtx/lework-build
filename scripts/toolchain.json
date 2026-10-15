@@ -1,0 +1,17 @@
+{
+  "node": "22.16.0",
+  "bun": "1.3.6",
+  "bundler": "2.7.2",
+  "bundletool": "1.18.1",
+  "bundletoolSha256": "675786493983787ffa11550bdb7c0715679a44e1643f3ff980a529e9c822595c",
+  "audioApi": "0.12.2",
+  "audioTag": "v3.1.0",
+  "archives": {
+    "android.zip": "5f6d01fc82cb736f00485f40d78735414494096a3a14be616c17666babbc046a",
+    "ffmpeg_ios.zip": "33fa2b01bf876294052a551b556475d76a27dd429d42c90d851c41cc1f987ac7",
+    "iphoneos.zip": "6cfc894adc262cdf895d34144c8a7719ec7df562e932b2100f30411eb9dd147a",
+    "iphonesimulator.zip": "dbdb930335abb4d46309fdba316ed2f00417fe324738d548ad2bc1d24df42d46",
+    "jniLibs.zip": "10d29ce385ffaee74c1bcdedef0794a7fa53a035390f5c0766e33c75ba21beee",
+    "macosx.zip": "8baf274316311f6d600a5439b44c32be257f6333e3e6e4010c50a7260b7ad6de"
+  }
+}

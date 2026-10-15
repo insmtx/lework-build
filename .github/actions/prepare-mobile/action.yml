@@ -1,0 +1,36 @@
+name: Prepare mobile dependencies
+description: Install pinned tools, locked monorepo dependencies and verified native archives
+inputs:
+  platform:
+    description: android or ios
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Read toolchain
+      id: tools
+      shell: bash
+      run: |
+        node --input-type=module -e 'import {appendFileSync, readFileSync} from "node:fs"; const toolchain = JSON.parse(readFileSync("scripts/toolchain.json", "utf8")); appendFileSync(process.env.GITHUB_OUTPUT, `node=${toolchain.node}\nbun=${toolchain.bun}\n`);'
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ steps.tools.outputs.node }}
+    - uses: oven-sh/setup-bun@v2
+      with:
+        bun-version: ${{ steps.tools.outputs.bun }}
+    - name: Install locked source dependencies
+      working-directory: source
+      shell: bash
+      env:
+        NODE_ENV: development
+      run: |
+        set -euo pipefail
+        test ! -e node_modules
+        test -z "$(git status --porcelain --untracked-files=no)"
+        bun install --frozen-lockfile --backend=copyfile
+        git diff --exit-code -- bun.lock package.json
+    - name: Prepare verified native libraries
+      shell: bash
+      env:
+        NATIVE_PLATFORM: ${{ inputs.platform }}
+      run: node scripts/prepare-native.mjs source "$NATIVE_PLATFORM"

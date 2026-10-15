@@ -1,0 +1,61 @@
+require 'json'
+require 'fileutils'
+
+def require_env!(name)
+  value = ENV[name]
+  UI.user_error!("Missing required env: #{name}") if value.nil? || value.empty?
+  value
+end
+
+platform :ios do
+  lane :build_ipa do
+    release = JSON.parse(File.read(File.expand_path('../.private/release.json', __dir__)))
+    ios = File.expand_path('../source/apps/mobile/ios', __dir__)
+    project_name = require_env!('IOS_PROJECT_NAME')
+    profile = require_env!('IOS_PROFILE_APP_NAME')
+    update_code_signing_settings(
+      use_automatic_signing: false,
+      path: File.join(ios, "#{project_name}.xcodeproj"),
+      team_id: require_env!('APPLE_TEAM_ID'), targets: [project_name],
+      profile_name: profile, code_sign_identity: 'Apple Distribution'
+    )
+    output = File.expand_path('../.private/ios-output', __dir__)
+    FileUtils.mkdir_p(output)
+    build_app(
+      workspace: File.join(ios, "#{project_name}.xcworkspace"), scheme: project_name,
+      configuration: 'Release', clean: true,
+      output_directory: output, output_name: release.fetch('artifact_name'),
+      archive_path: File.join(output, "#{project_name}.xcarchive"),
+      buildlog_path: File.expand_path('../.private/gym-logs', __dir__),
+      export_method: release.fetch('build_target') == 'ios-adhoc' ? 'ad-hoc' : 'app-store',
+      export_team_id: require_env!('APPLE_TEAM_ID'),
+      export_options: { signingStyle: 'manual', provisioningProfiles: { release.fetch('bundle_id') => profile } }
+    )
+  end
+
+  lane :upload_testflight do
+    api_key = app_store_connect_api_key(
+      key_id: require_env!('ASC_KEY_ID'), issuer_id: require_env!('ASC_ISSUER_ID'),
+      key_filepath: require_env!('ASC_API_KEY_PATH'), duration: 1200, in_house: false
+    )
+    upload_to_testflight(
+      api_key: api_key, ipa: require_env!('IOS_IPA_PATH'),
+      app_identifier: require_env!('IOS_APP_BUNDLE_ID'),
+      changelog: ENV['IOS_TESTFLIGHT_CHANGELOG'], skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+end
+
+platform :android do
+  lane :upload_play do
+    upload_to_play_store(
+      json_key: require_env!('GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_PATH'),
+      package_name: require_env!('ANDROID_PACKAGE_NAME'),
+      track: require_env!('ANDROID_PLAY_TRACK'), aab: require_env!('ANDROID_AAB_PATH'),
+      release_status: ENV.fetch('ANDROID_RELEASE_STATUS', 'draft'),
+      skip_upload_apk: true, skip_upload_metadata: true, skip_upload_changelogs: true,
+      skip_upload_images: true, skip_upload_screenshots: true
+    )
+  end
+end

@@ -1,0 +1,15 @@
+node_modules/
+.private/
+source/
+dist/
+.env
+.env.*
+!.env.example
+*.p12
+*.p8
+*.mobileprovision
+*.keystore
+*.jks
+.DS_Store
+vendor/bundle/
+.bundle/

@@ -1,0 +1,305 @@
+name: Mobile Build
+run-name: Mobile ${{ inputs.build_target || github.event.action }} ${{ inputs.ref || github.event.client_payload.ref }}
+on:
+  repository_dispatch:
+    types: [mobile-android-release, mobile-ios-release]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 源码 tag/ref/SHA，例如 mobile-v1.4.1
+        required: true
+        type: string
+      build_target:
+        description: 构建目标
+        required: true
+        default: android-apk
+        type: choice
+        options: [android-apk, android-play, ios-adhoc, ios-store]
+      release_env:
+        description: 后端环境，地址读取源码配置
+        required: true
+        default: production
+        type: choice
+        options: [test, production]
+      version:
+        description: 非版本 tag 时填写 X.Y.Z
+        type: string
+      build_number:
+        description: 留空查询商店；首包/无商店账号时填写正整数
+        type: string
+      build_number_offset:
+        description: 自动商店构建号的非负偏移量
+        default: '0'
+        type: string
+      target:
+        description: Android 分发标记；iOS 固定 production
+        default: production
+        type: choice
+        options: [internal, external, production]
+      publish_apk:
+        description: 构建成功后上传 APK 到 R2 并更新对应环境 latest
+        default: false
+        type: boolean
+      submit:
+        description: 同一份 AAB/IPA 构建后直接上传 Play/TestFlight（默认关闭）
+        default: false
+        type: boolean
+      play_track:
+        description: Play 上传轨道；production 也仅创建 draft
+        default: internal
+        type: choice
+        options: [internal, beta, production]
+permissions:
+  contents: read
+concurrency:
+  group: mobile-build
+  cancel-in-progress: false
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      platform: ${{ steps.release.outputs.platform }}
+      build_target: ${{ steps.release.outputs.build_target }}
+      source_ref: ${{ steps.release.outputs.source_ref }}
+      artifact_group: ${{ steps.release.outputs.artifact_group }}
+      publish_apk: ${{ steps.release.outputs.publish_apk }}
+      submit: ${{ steps.release.outputs.submit }}
+      release_json: ${{ steps.release.outputs.release_json }}
+    env:
+      ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME }}
+      IOS_APP_BUNDLE_ID: ${{ secrets.IOS_APP_BUNDLE_ID }}
+      IOS_PROJECT_NAME: ${{ secrets.IOS_PROJECT_NAME }}
+      SOURCE_GIT_URL: ${{ vars.SOURCE_GIT_URL }}
+      SOURCE_GIT_USERNAME: ${{ vars.SOURCE_GIT_USERNAME }}
+      SOURCE_GIT_TOKEN: ${{ secrets.SOURCE_GIT_TOKEN }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      IOS_DISTRIBUTION_CERT_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_BASE64 }}
+      IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+      IOS_PROFILE_APP_BASE64: ${{ secrets.IOS_PROFILE_APP_BASE64 }}
+      IOS_PROFILE_ADHOC_BASE64: ${{ secrets.IOS_PROFILE_ADHOC_BASE64 }}
+      GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+      ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Validate configuration and resolve release
+        id: release
+        run: node scripts/resolve-release.mjs
+  build:
+    needs: prepare
+    runs-on: ${{ needs.prepare.outputs.platform == 'ios' && 'macos-26' || 'ubuntu-24.04' }}
+    permissions:
+      contents: write
+    timeout-minutes: 120
+    env:
+      EXPO_NO_DOTENV: '1'
+      CI: '1'
+      EXPO_PUBLIC_APP_CHANNEL: production
+      EXPO_PUBLIC_RELEASE_ENV: ${{ fromJson(needs.prepare.outputs.release_json).release_env }}
+      IOS_PROJECT_NAME: ${{ secrets.IOS_PROJECT_NAME }}
+      SENTRY_DISABLE_AUTO_UPLOAD: 'true'
+      SENTRY_ALLOW_FAILURE: 'true'
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.16.0'
+      - name: Restore validated release request
+        env:
+          RELEASE_JSON: ${{ needs.prepare.outputs.release_json }}
+          EXPECTED_BUNDLE_ID: ${{ needs.prepare.outputs.platform == 'ios' && secrets.IOS_APP_BUNDLE_ID || secrets.ANDROID_PACKAGE_NAME }}
+        run: |
+          node --input-type=module <<'JS'
+          import { mkdirSync, writeFileSync } from 'node:fs';
+          mkdirSync('.private', { recursive: true });
+          const release = { ...JSON.parse(process.env.RELEASE_JSON), bundle_id: process.env.EXPECTED_BUNDLE_ID };
+          writeFileSync('.private/release.json', JSON.stringify(release));
+          JS
+      - name: Fetch GitLab source
+        env:
+          SOURCE_GIT_URL: ${{ vars.SOURCE_GIT_URL }}
+          SOURCE_GIT_USERNAME: ${{ vars.SOURCE_GIT_USERNAME }}
+          SOURCE_GIT_TOKEN: ${{ secrets.SOURCE_GIT_TOKEN }}
+          SOURCE_GIT_CA_CERT_BASE64: ${{ secrets.SOURCE_GIT_CA_CERT_BASE64 }}
+          MOBILE_SOURCE_REF: ${{ needs.prepare.outputs.source_ref }}
+        run: node scripts/checkout-source.mjs
+      - uses: ./.github/actions/prepare-mobile
+        with:
+          platform: ${{ needs.prepare.outputs.platform }}
+      - name: Update managed version and restore runtime files
+        env:
+          GOOGLE_SERVICES_PROD_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_PROD_JSON_BASE64 }}
+        run: node scripts/prepare-source.mjs
+      - name: Verify resolved Expo configuration
+        working-directory: source/apps/mobile
+        run: node ../../node_modules/expo/bin/cli config --json > ../../../.private/expo-config.json
+      - name: Validate source app configuration
+        run: node scripts/prepare-source.mjs validate
+      - uses: actions/setup-java@v4
+        if: needs.prepare.outputs.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        if: needs.prepare.outputs.platform == 'android'
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        if: needs.prepare.outputs.platform == 'android'
+        with:
+          cache-disabled: true
+      - uses: ruby/setup-ruby@v1
+        if: needs.prepare.outputs.platform == 'ios' || needs.prepare.outputs.submit == 'true'
+        with:
+          ruby-version: '3.3'
+          bundler: '2.7.2'
+          bundler-cache: true
+      - name: Check Apple toolchain
+        if: needs.prepare.outputs.platform == 'ios'
+        run: |
+          xcodebuild -version
+          swift --version
+          swift --version | grep -Eq 'Swift version (6\.[2-9]|[7-9]\.)'
+      - name: Generate native project
+        working-directory: source/apps/mobile
+        env:
+          NATIVE_PLATFORM: ${{ needs.prepare.outputs.platform }}
+        run: node ../../node_modules/expo/bin/cli prebuild --platform "$NATIVE_PLATFORM" --clean --no-install
+      - name: Normalize and verify native versions
+        run: node scripts/prepare-source.mjs native
+      - name: Restore Android keystore
+        if: needs.prepare.outputs.platform == 'android'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > source/apps/mobile/android/app/ci-upload.keystore
+          node scripts/configure-android-signing.mjs source/apps/mobile/android/app/build.gradle
+      - name: Compile signed Android artifact
+        if: needs.prepare.outputs.platform == 'android'
+        working-directory: source/apps/mobile/android
+        env:
+          ORG_GRADLE_PROJECT_CI_UPLOAD_STORE_FILE: ci-upload.keystore
+          ORG_GRADLE_PROJECT_CI_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_CI_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_CI_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: ./gradlew "$MOBILE_GRADLE_TASK" --no-daemon --stacktrace
+      - name: Install iOS signing
+        if: needs.prepare.outputs.platform == 'ios'
+        id: signing
+        env:
+          IOS_DISTRIBUTION_CERT_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_BASE64 }}
+          IOS_CERT_PASSWORD: ${{ secrets.IOS_CERT_PASSWORD }}
+          IOS_PROFILE_APP_BASE64: ${{ secrets.IOS_PROFILE_APP_BASE64 }}
+          IOS_PROFILE_ADHOC_BASE64: ${{ secrets.IOS_PROFILE_ADHOC_BASE64 }}
+        run: bash scripts/install-ios-signing.sh
+      - name: Install CocoaPods
+        if: needs.prepare.outputs.platform == 'ios'
+        working-directory: source/apps/mobile/ios
+        run: pod install
+      - name: Compile signed iOS artifact
+        if: needs.prepare.outputs.platform == 'ios'
+        env:
+          IOS_PROFILE_APP_NAME: ${{ steps.signing.outputs.app_name }}
+        run: bundle exec fastlane ios build_ipa
+      - name: Collect and verify artifact
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: node scripts/artifacts.mjs collect
+      - name: Deliver artifact and provenance
+        if: vars.UPLOAD_BUILD_ARTIFACTS == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.artifact_group }}
+          path: dist/*
+          retention-days: 30
+          if-no-files-found: error
+      - name: Publish APK to R2
+        if: needs.prepare.outputs.publish_apk == 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          R2_OBJECT_PREFIX: ${{ vars.R2_OBJECT_PREFIX }}
+        run: node scripts/upload-r2-artifact.mjs
+      - name: Upload this AAB to Google Play
+        if: needs.prepare.outputs.submit == 'true' && needs.prepare.outputs.build_target == 'android-play'
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64 }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_PATH: ${{ github.workspace }}/.private/play-service-account.json
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_BASE64" | base64 --decode > "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON_PATH"
+          export ANDROID_PACKAGE_NAME="$MOBILE_BUNDLE_ID"
+          export ANDROID_PLAY_TRACK="$MOBILE_PLAY_TRACK"
+          export ANDROID_AAB_PATH="$GITHUB_WORKSPACE/dist/$MOBILE_ARTIFACT_NAME"
+          bundle exec fastlane android upload_play
+      - name: Upload this IPA to TestFlight
+        if: needs.prepare.outputs.submit == 'true' && needs.prepare.outputs.build_target == 'ios-store'
+        env:
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_API_KEY_PATH: ${{ github.workspace }}/.private/AuthKey.p8
+          IOS_TESTFLIGHT_CHANGELOG: Mobile 测试版本
+        run: |
+          set -euo pipefail
+          umask 077
+          printf '%s' "$ASC_API_KEY_P8_BASE64" | base64 --decode > "$ASC_API_KEY_PATH"
+          export IOS_APP_BUNDLE_ID="$MOBILE_BUNDLE_ID"
+          export IOS_IPA_PATH="$GITHUB_WORKSPACE/dist/$MOBILE_ARTIFACT_NAME"
+          bundle exec fastlane ios upload_testflight
+      - name: Archive in GitHub Release
+        if: vars.ARCHIVE_RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="mobile-v${MOBILE_VERSION}-${MOBILE_BUILD_NUMBER}-${MOBILE_RELEASE_ENV}"
+          if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --title "Mobile ${MOBILE_VERSION} (${MOBILE_BUILD_NUMBER}) ${MOBILE_RELEASE_ENV}" \
+              --notes "源码提交：${MOBILE_SOURCE_SHA}；构建：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi
+          gh release upload "$tag" dist/* --repo "$GITHUB_REPOSITORY"
+      - name: Cleanup signing and upload credentials
+        if: always()
+        run: bash scripts/install-ios-signing.sh cleanup
+  notify:
+    needs: [prepare, build]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Notify configured group
+        env:
+          FEISHU_RELEASE_WEBHOOK_URL: ${{ secrets.FEISHU_RELEASE_WEBHOOK_URL }}
+          FEISHU_RELEASE_WEBHOOK_SECRET: ${{ secrets.FEISHU_RELEASE_WEBHOOK_SECRET }}
+          RELEASE_RESULT: ${{ needs.build.result }}
+          RELEASE_STAGE: 构建与可选上传
+        run: node scripts/notify-release.mjs
