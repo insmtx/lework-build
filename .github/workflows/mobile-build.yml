@@ -218,9 +218,18 @@ jobs:
         run: pod install
       - name: Compile signed iOS artifact
         if: needs.prepare.outputs.platform == 'ios'
+        id: ios_build
+        timeout-minutes: 45
         env:
           IOS_PROFILE_APP_NAME: ${{ steps.signing.outputs.app_name }}
         run: bundle exec fastlane ios build_ipa
+      - name: Show raw iOS build failure log
+        if: always() && needs.prepare.outputs.platform == 'ios' && (steps.ios_build.outcome == 'failure' || steps.ios_build.outcome == 'cancelled')
+        run: |
+          for log in .private/gym-logs/*.log; do
+            [ -f "$log" ] || continue
+            tail -n 160 "$log"
+          done
       - name: Collect and verify artifact
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}

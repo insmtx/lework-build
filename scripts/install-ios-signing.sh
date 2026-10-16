@@ -40,7 +40,7 @@ printf '%s' "$IOS_DISTRIBUTION_CERT_BASE64" | base64 --decode > .private/signing
 security create-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$keychain_path"
 security set-keychain-settings -lut 21600 "$keychain_path"
 security unlock-keychain -p "$IOS_KEYCHAIN_PASSWORD" "$keychain_path"
-security import .private/signing/distribution.p12 -P "$IOS_CERT_PASSWORD" -t cert -f pkcs12 -k "$keychain_path"
+security import .private/signing/distribution.p12 -P "$IOS_CERT_PASSWORD" -t cert -f pkcs12 -k "$keychain_path" -T /usr/bin/codesign
 python3 - <<'PY'
 import json, pathlib, subprocess
 root = pathlib.Path('.private/signing')
@@ -58,7 +58,7 @@ printf '%s' "$profile_base64" | base64 --decode > .private/signing/app.mobilepro
 security cms -D -i .private/signing/app.mobileprovision > .private/signing/app.plist
 security find-identity -v -p codesigning "$keychain_path" > .private/signing/identities
 python3 - <<'PY'
-import datetime, hashlib, json, os, pathlib, plistlib, shutil
+import datetime, hashlib, json, os, pathlib, plistlib, shutil, subprocess
 root = pathlib.Path('.private/signing')
 release = json.loads(pathlib.Path('.private/release.json').read_text())
 profile = plistlib.loads((root / 'app.plist').read_bytes())
@@ -75,8 +75,21 @@ adhoc = bool(profile.get('ProvisionedDevices'))
 if adhoc != (release['build_target'] == 'ios-adhoc'):
     raise SystemExit('Ad Hoc/App Store 描述文件类型与构建目标不匹配')
 identities = (root / 'identities').read_text()
-if not any(hashlib.sha1(certificate).hexdigest().upper() in identities for certificate in profile.get('DeveloperCertificates', [])):
+identity = next((hashlib.sha1(certificate).hexdigest().upper() for certificate in profile.get('DeveloperCertificates', []) if hashlib.sha1(certificate).hexdigest().upper() in identities), None)
+if identity is None:
     raise SystemExit('P12 私钥证书与描述文件中的证书不匹配')
+# 证书可见不代表私钥可用，编译前实际签名，避免无人值守时等待授权弹窗。
+probe = root / 'codesign-probe'
+shutil.copyfile('/usr/bin/true', probe)
+print('[signing] 检查私钥能否无交互签名，最长等待 30 秒', flush=True)
+try:
+    subprocess.run(['/usr/bin/codesign', '--force', '--sign', identity, '--keychain', (root / 'keychain-path').read_text(), '--timestamp=none', str(probe)], check=True, timeout=30)
+except subprocess.TimeoutExpired:
+    raise SystemExit('签名检查超过 30 秒，检查临时钥匙串的私钥访问授权') from None
+except subprocess.CalledProcessError:
+    raise SystemExit('签名检查失败，请检查上方 codesign 错误及 P12 私钥授权') from None
+finally:
+    probe.unlink(missing_ok=True)
 name, uuid = profile['Name'], profile['UUID']
 if any(char in name + uuid for char in '\r\n'):
     raise SystemExit('描述文件包含非法名称')
@@ -87,5 +100,5 @@ shutil.copyfile(root / 'app.mobileprovision', destination)
 (root / 'installed-profile').write_text(str(destination))
 with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
     output.write('app_name=' + name + '\n')
-print('[signing]  Team/Bundle/描述文件类型/有效期/证书匹配校验通过')
+print('[signing] Team/Bundle/描述文件类型/有效期/证书匹配及实际签名校验通过')
 PY
