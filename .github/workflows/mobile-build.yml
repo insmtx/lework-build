@@ -67,7 +67,7 @@ jobs:
       submit: ${{ steps.release.outputs.submit }}
       release_json: ${{ steps.release.outputs.release_json }}
     env:
-      ANDROID_PACKAGE_NAME: ${{ secrets.ANDROID_PACKAGE_NAME }}
+      ANDROID_PACKAGE_NAME: ${{ vars.ANDROID_PACKAGE_NAME || secrets.ANDROID_PACKAGE_NAME }}
       IOS_APP_BUNDLE_ID: ${{ secrets.IOS_APP_BUNDLE_ID }}
       IOS_PROJECT_NAME: ${{ secrets.IOS_PROJECT_NAME }}
       SOURCE_GIT_URL: ${{ vars.SOURCE_GIT_URL }}
@@ -75,7 +75,7 @@ jobs:
       SOURCE_GIT_TOKEN: ${{ secrets.SOURCE_GIT_TOKEN }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
       ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       IOS_DISTRIBUTION_CERT_BASE64: ${{ secrets.IOS_DISTRIBUTION_CERT_BASE64 }}
@@ -126,7 +126,7 @@ jobs:
       - name: Restore validated release request
         env:
           RELEASE_JSON: ${{ needs.prepare.outputs.release_json }}
-          EXPECTED_BUNDLE_ID: ${{ needs.prepare.outputs.platform == 'ios' && secrets.IOS_APP_BUNDLE_ID || secrets.ANDROID_PACKAGE_NAME }}
+          EXPECTED_BUNDLE_ID: ${{ needs.prepare.outputs.platform == 'ios' && secrets.IOS_APP_BUNDLE_ID || (vars.ANDROID_PACKAGE_NAME || secrets.ANDROID_PACKAGE_NAME) }}
         run: |
           node --input-type=module <<'JS'
           import { mkdirSync, writeFileSync } from 'node:fs';
@@ -200,7 +200,7 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_CI_UPLOAD_STORE_FILE: ci-upload.keystore
           ORG_GRADLE_PROJECT_CI_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_CI_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_CI_UPLOAD_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_CI_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew "$MOBILE_GRADLE_TASK" --no-daemon --stacktrace
       - name: Install iOS signing
@@ -233,7 +233,7 @@ jobs:
       - name: Collect and verify artifact
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_ALIAS: ${{ vars.ANDROID_KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
         run: node scripts/artifacts.mjs collect
       - name: Deliver artifact and provenance
         if: vars.UPLOAD_BUILD_ARTIFACTS == 'true'
