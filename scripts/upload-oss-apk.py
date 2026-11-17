@@ -17,8 +17,12 @@ apk = Path('dist') / name
 content = apk.read_bytes()
 if len(content) != manifest['bytes'] or hashlib.sha256(content).hexdigest() != manifest['sha256']:
     raise ValueError('APK does not match verified build manifest')
+endpoint = os.environ.get('OSS_UPLOAD_ENDPOINT') or 'https://oss-cn-hangzhou.aliyuncs.com'
+if endpoint not in ('https://oss-cn-hangzhou.aliyuncs.com', 'https://oss-accelerate.aliyuncs.com'):
+    raise ValueError('Unsupported OSS upload endpoint')
+print(f'OSS upload endpoint: {endpoint}', flush=True)
 bucket = oss2.Bucket(oss2.Auth(os.environ['OSS_ACCESS_KEY_ID'], os.environ['OSS_ACCESS_KEY_SECRET']),
-                     'https://oss-cn-hangzhou.aliyuncs.com', 'lework-saas', connect_timeout=60)
+                     endpoint, 'lework-saas', connect_timeout=60)
 root = f"mobile/lework/{manifest['release_env']}"
 key = f'{root}/{name}'
 print(f'Checking existing object: {key}', flush=True)

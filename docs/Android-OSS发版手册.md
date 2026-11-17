@@ -101,3 +101,9 @@ https://lework-saas.oss-cn-hangzhou.aliyuncs.com/mobile/lework/production/latest
 ## 七、Google Play 参数说明
 
 `play_track` 仅在 `android-play` 且 `submit=true` 时使用：internal 为内部测试，beta 为测试渠道，production 为正式渠道（当前流水线只创建草稿）。OSS APK 发布保持默认值即可。
+
+
+## APK 文件命名
+
+生产包：`lework-<版本>-<构建号>-android.apk`；测试环境：`lework-<版本>-<构建号>-android-test.apk`。
+选择 internal/external 分发标记时追加对应后缀，避免不同分发包重名。构建清单、SHA256 文件、OSS 上传和官网清单均使用最终产物名称。AAB、IPA 命名保持现有格式。

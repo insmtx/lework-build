@@ -175,3 +175,9 @@ production APK 发布到 mobile/lework/production/，test 包发布到 mobile/le
 
 Bun 安装包缓存按操作系统、架构、Bun 版本和源码 lockfile 保存；Gradle 仅缓存 modules-2 依赖和 wrapper 下载。首次构建或缓存失效时仍会下载，后续构建可复用。源码 node_modules、签名材料和配置缓存不在新增缓存范围内。
 缓存命中不省略 frozen-lockfile 安装和产物签名校验；原生项目生成、编译仍正常执行。可在 GitHub Actions 的 Caches 页面删除缓存以排查损坏问题。
+
+
+### 手机 OSS 上传加速
+
+先在 lework-saas Bucket 开启传输加速，再在本手机流水线仓库的 Actions → Variables 添加 `OSS_UPLOAD_ENDPOINT`，值为 `https://oss-accelerate.aliyuncs.com`。不填写则继续使用杭州普通 Endpoint。
+该配置只切换手机发布脚本的 OSS 访问入口，公开 APK URL 和官网 latest.json 地址保持原样。传输加速可能额外计费，按控制台价格确认。删除变量可恢复普通入口。

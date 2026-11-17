@@ -283,6 +283,7 @@ jobs:
         timeout-minutes: 20
         if: inputs.publish_oss == true
         env:
+          OSS_UPLOAD_ENDPOINT: ${{ vars.OSS_UPLOAD_ENDPOINT }}
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
         run: |
