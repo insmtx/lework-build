@@ -158,3 +158,14 @@ gh secret set SOURCE_GIT_TOKEN -R OWNER/PIPELINE_REPO
 首包完成后，核对包名、后端环境、版本号和签名，再做真机安装与登录验证。开启商店或 R2 上传后，再检查对应入口是否接收成功。
 
 参考：[Expo 应用配置](https://docs.expo.dev/workflow/configuration/)、[GitLab Deploy Token](https://docs.gitlab.com/user/project/deploy_tokens/)、[Apple 证书与 profile](https://developer.apple.com/account/resources/)、[Play API](https://developers.google.com/android-publisher/getting_started)、[R2 token](https://developers.cloudflare.com/r2/api/s3/tokens/)。
+
+
+## 新增：LeWork OSS APK 发布
+
+手动运行 Mobile Build 时选择 android-apk，可勾选 publish_oss；原 publish_apk/R2 功能保留且独立。
+在本流水线仓库另行添加 OSS_ACCESS_KEY_ID 和 OSS_ACCESS_KEY_SECRET（桌面流水线 Secrets 不会自动共享）。
+RAM 需能读取、上传 lework-saas 桶的 mobile/lework/*；对外开放对应目录的匿名 GetObject。
+production APK 发布到 mobile/lework/production/，test 包发布到 mobile/lework/test/，各自维护 latest.json。
+官网仅使用 production/latest.json；清单保存版本、构建号、SHA256、大小和版本化 APK 链接。
+上传前校验本次构建产物，公开下载校验通过后才更新清单。相同文件名不同内容或较低构建号拒绝发布。
+此选项仅用于 workflow_dispatch 手动构建；iOS/AAB 不支持直接 OSS 分发。
