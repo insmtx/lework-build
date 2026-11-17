@@ -270,13 +270,14 @@ jobs:
         with:
           python-version: '3.12'
       - name: Publish APK to LeWork OSS
+        timeout-minutes: 20
         if: inputs.publish_oss == true
         env:
           OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
           OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
         run: |
           pip install oss2==2.19.1
-          python scripts/upload-oss-apk.py
+          python -u scripts/upload-oss-apk.py
       - name: Upload this AAB to Google Play
         if: needs.prepare.outputs.submit == 'true' && needs.prepare.outputs.build_target == 'android-play'
         env:
