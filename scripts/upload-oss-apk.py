@@ -47,7 +47,7 @@ def progress(consumed, total):
 
 print(f'Uploading APK: {len(content)} bytes', flush=True)
 bucket.put_object_from_file(key, str(apk), headers={'Content-Type': 'application/vnd.android.package-archive'}, progress_callback=progress)
-url = f'https://lework-saas.oss-cn-hangzhou.aliyuncs.com/{key}'
+url = f'https://download.lework.insmtx.com/{key}'
 print(f'Verifying public APK download: {url}', flush=True)
 with urllib.request.urlopen(url, timeout=60) as response:
     if hashlib.sha256(response.read()).hexdigest() != manifest['sha256']:

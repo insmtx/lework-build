@@ -181,3 +181,6 @@ Bun 安装包缓存按操作系统、架构、Bun 版本和源码 lockfile 保�
 
 先在 lework-saas Bucket 开启传输加速，再在本手机流水线仓库的 Actions → Variables 添加 `OSS_UPLOAD_ENDPOINT`，值为 `https://oss-accelerate.aliyuncs.com`。不填写则继续使用杭州普通 Endpoint。
 该配置只切换手机发布脚本的 OSS 访问入口，公开 APK URL 和官网 latest.json 地址保持原样。传输加速可能额外计费，按控制台价格确认。删除变量可恢复普通入口。
+
+
+APK 公网下载及 SHA256 校验使用已绑定 OSS 的 `https://download.lework.insmtx.com`，以满足 OSS APK 分发要求。上传 Endpoint 仍由 OSS_UPLOAD_ENDPOINT 控制。latest.json 可从 OSS 标准域名读取，清单中的 APK url 使用自定义域名。
