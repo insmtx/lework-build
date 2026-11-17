@@ -18,6 +18,13 @@ runs:
     - uses: oven-sh/setup-bun@v2
       with:
         bun-version: ${{ steps.tools.outputs.bun }}
+    - name: Cache Bun package downloads
+      uses: actions/cache@v4
+      with:
+        path: ~/.bun/install/cache
+        key: bun-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.bun }}-${{ hashFiles('source/bun.lock') }}
+        restore-keys: |
+          bun-${{ runner.os }}-${{ runner.arch }}-${{ steps.tools.outputs.bun }}-
     - name: Install locked source dependencies
       working-directory: source
       shell: bash

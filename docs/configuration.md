@@ -169,3 +169,9 @@ production APK 发布到 mobile/lework/production/，test 包发布到 mobile/le
 官网仅使用 production/latest.json；清单保存版本、构建号、SHA256、大小和版本化 APK 链接。
 上传前校验本次构建产物，公开下载校验通过后才更新清单。相同文件名不同内容或较低构建号拒绝发布。
 此选项仅用于 workflow_dispatch 手动构建；iOS/AAB 不支持直接 OSS 分发。
+
+
+## 构建下载缓存
+
+Bun 安装包缓存按操作系统、架构、Bun 版本和源码 lockfile 保存；Gradle 仅缓存 modules-2 依赖和 wrapper 下载。首次构建或缓存失效时仍会下载，后续构建可复用。源码 node_modules、签名材料和配置缓存不在新增缓存范围内。
+缓存命中不省略 frozen-lockfile 安装和产物签名校验；原生项目生成、编译仍正常执行。可在 GitHub Actions 的 Caches 页面删除缓存以排查损坏问题。

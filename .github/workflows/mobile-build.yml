@@ -167,6 +167,16 @@ jobs:
         if: needs.prepare.outputs.platform == 'android'
         with:
           packages: platform-tools
+      - name: Cache Android dependency downloads
+        if: needs.prepare.outputs.platform == 'android'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: android-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('source/bun.lock', 'scripts/toolchain.json') }}
+          restore-keys: |
+            android-deps-${{ runner.os }}-${{ runner.arch }}-
       - uses: gradle/actions/setup-gradle@v4
         if: needs.prepare.outputs.platform == 'android'
         with:
