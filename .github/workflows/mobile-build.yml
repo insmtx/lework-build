@@ -40,6 +40,10 @@ on:
         description: 构建成功后上传 APK 到 R2 并更新对应环境 latest
         default: false
         type: boolean
+      publish_oss:
+        description: 构建成功后将 APK 发布到 LeWork OSS
+        default: false
+        type: boolean
       submit:
         description: 同一份 AAB/IPA 构建后直接上传 Play/TestFlight（默认关闭）
         default: false
@@ -253,6 +257,26 @@ jobs:
           R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
           R2_OBJECT_PREFIX: ${{ vars.R2_OBJECT_PREFIX }}
         run: node scripts/upload-r2-artifact.mjs
+      - name: Prepare verified APK for OSS
+        if: inputs.publish_oss == true
+        run: |
+          node --input-type=module <<'JS'
+          import { readArtifact } from './scripts/artifacts.mjs';
+          const { manifest } = readArtifact();
+          if (manifest.artifact_type !== 'apk') throw new Error('OSS only supports APK');
+          JS
+      - uses: actions/setup-python@v5
+        if: inputs.publish_oss == true
+        with:
+          python-version: '3.12'
+      - name: Publish APK to LeWork OSS
+        if: inputs.publish_oss == true
+        env:
+          OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID }}
+          OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET }}
+        run: |
+          pip install oss2==2.19.1
+          python scripts/upload-oss-apk.py
       - name: Upload this AAB to Google Play
         if: needs.prepare.outputs.submit == 'true' && needs.prepare.outputs.build_target == 'android-play'
         env:
