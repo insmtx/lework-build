@@ -29,7 +29,8 @@ test('四个构建目标使用同一语义版本，包名按平台读取', async
     assert.equal(release.version, '1.4.1');
     assert.equal(release.build_number, '101');
     assert.equal(release.bundle_id, target.startsWith('ios') ? 'com.example.mobile.ios' : 'com.example.mobile');
-    assert.match(release.artifact_name, new RegExp(`mobile-1.4.1-101-production-${target}`));
+    if (target === 'android-apk') assert.equal(release.artifact_name, 'lework-1.4.1-101-android.apk');
+    else assert.match(release.artifact_name, new RegExp(`mobile-1.4.1-101-production-${target}`));
     assert.equal(release.public_env.EXPO_PUBLIC_APP_CHANNEL, 'production');
     assert.equal(release.artifact_group, 'mobile-38272170658');
   }
@@ -43,7 +44,7 @@ test('生产渠道可以编入 test 后端，保留原版渠道/后端分离语�
   assert.equal(release.public_env.EXPO_PUBLIC_APP_CHANNEL, 'production');
   assert.equal(release.public_env.EXPO_PUBLIC_RELEASE_ENV, 'test');
   assert.deepEqual(release.public_env, { EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: 'test' });
-  assert.match(release.artifact_name, /-test-/);
+  assert.match(release.artifact_name, /-android-test(?:-|\.)/);
 });
 test('tag 版本和显式版本冲突时拒绝；branch 必须显式版本', () => {
   assert.throws(() => normalizeRequest({ ...request, version: '1.4.2' }), /不一致/);

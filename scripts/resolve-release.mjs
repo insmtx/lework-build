@@ -93,7 +93,9 @@ export async function resolveRelease(event, env = process.env) {
   return {
     schema: 1, ...request, build_number: buildNumber, platform, artifact_type: artifactType,
     bundle_id: bundleId, source_repository: env.SOURCE_GIT_URL,
-    artifact_name: `mobile-${request.version}-${buildNumber}-${request.release_env}-${request.build_target}-${request.target}.${artifactType}`,
+    artifact_name: artifactType === 'apk'
+      ? `lework-${request.version}-${buildNumber}-android${request.release_env === 'test' ? '-test' : ''}${request.target === 'production' ? '' : `-${request.target}`}.apk`
+      : `mobile-${request.version}-${buildNumber}-${request.release_env}-${request.build_target}-${request.target}.${artifactType}`,
     artifact_group: `mobile-${env.GITHUB_RUN_ID || 'local'}`,
     gradle_task: artifactType === 'apk' ? 'assembleRelease' : 'bundleRelease',
     public_env: { EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: request.release_env },
