@@ -115,7 +115,10 @@ export function r2Keys(manifest, prefix = 'mobile/appUpdate') {
   if (manifest.artifact_type !== 'apk') throw new Error('R2 仅发布 APK');
   if (!['test', 'production'].includes(manifest.release_env)) throw new Error('非法 R2 环境');
   if (!/^[A-Za-z0-9_/-]+$/.test(prefix) || prefix.includes('..')) throw new Error('非法 R2 prefix');
-  const root = `${prefix.replace(/^\/+|\/+$/g, '')}/${manifest.release_env}`;
+  const mode = manifest.customer_mode ?? 'standard';
+  if (!['standard', 'shanjian'].includes(mode)) throw new Error('非法 APK 版本');
+  const modePath = mode === 'shanjian' ? '/shanjian' : '';
+  const root = `${prefix.replace(/^\/+|\/+$/g, '')}${modePath}/${manifest.release_env}`;
   return { object: `${root}/mobile_Android_${manifest.version}-${manifest.build_number}.apk`, latest: `${root}/mobile_Android_latest.apk` };
 }
 

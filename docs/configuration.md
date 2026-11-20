@@ -2,7 +2,9 @@
 
 流水线从 GitLab 拉取源码，在 GitHub 托管 Runner 上编译：Android 使用 Gradle，iOS 使用 Xcode 和 Fastlane，不依赖 GitLab Runner。
 
-账号和证书在首次接入时配置。日常打包进入 **Actions → Mobile Build → Run workflow**，选择源码版本、构建目标和后端环境即可。
+账号和证书在首次接入时配置。日常打包进入 **Actions → Mobile Build → Run workflow**，选择源码版本、构建目标、后端环境及 App 版本。
+
+`customer_mode` 适用于 Android APK、AAB 及两种 iOS IPA，手动构建和 `repository_dispatch.client_payload` 均支持。省略时为 `standard`，陕建选择 `shanjian`。当前两版共用功能、包名、签名和商店条目，提交商店时共用构建号序列。陕建安装包文件名、Actions 产物组及 Release 标签带有 `shanjian`，构建清单记录 `customer_mode`。
 
 ## 先跑通一个包
 
@@ -24,9 +26,9 @@
 | API、网站、工作台地址 | mobile 的 `.env.*` 和 `app.config.ts` 中的环境映射 |
 | 登录回跳、关联域名、App Groups、原生插件 | 源码中的对应配置，与包名和账号能力保持一致 |
 
-流水线只传入 `EXPO_PUBLIC_APP_CHANNEL=production` 和选中的 `EXPO_PUBLIC_RELEASE_ENV`。`release_env=test` 表示正式应用身份连接测试后端，具体地址由源码解析，不需要在 GitHub 再填一套 URL。
+流水线传入 `EXPO_PUBLIC_CUSTOMER_MODE`、 `EXPO_PUBLIC_APP_CHANNEL=production` 和选中的 `EXPO_PUBLIC_RELEASE_ENV`。`release_env=test` 表示正式应用身份连接测试后端，具体地址由源码解析，不需要在 GitHub 再填一套 URL。
 
-构建时只同步版本号和原生构建号，不覆盖应用名称、scheme 或服务地址。用于签名和商店查询的包名保留在 Secrets；若与源码解析出的包名不同，构建会停止。安装包和 R2 文件使用通用的 `mobile` 前缀。
+构建时只同步版本号和原生构建号，不覆盖应用名称、scheme 或服务地址。用于签名和商店查询的包名保留在 Secrets；若与源码解析出的包名不同，构建会停止。R2 的陕建版本对象和 latest 均位于对应前缀的 `shanjian/<环境>/` 下。
 
 如果尚未迁移应用身份或后端地址，先在源码仓库改好，再打包。当前流程未接入 OTA 发布，源码中应关闭 `updates`。
 

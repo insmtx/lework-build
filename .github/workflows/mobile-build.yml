@@ -1,5 +1,5 @@
 name: Mobile Build
-run-name: Mobile ${{ inputs.build_target || github.event.action }} ${{ inputs.ref || github.event.client_payload.ref }}
+run-name: Mobile ${{ inputs.customer_mode || github.event.client_payload.customer_mode || 'standard' }} ${{ inputs.build_target || github.event.action }} ${{ inputs.ref || github.event.client_payload.ref }}
 on:
   repository_dispatch:
     types: [mobile-android-release, mobile-ios-release]
@@ -15,6 +15,11 @@ on:
         default: android-apk
         type: choice
         options: [android-apk, android-play, ios-adhoc, ios-store]
+      customer_mode:
+        description: App 版本（通用 / 陕建）
+        type: choice
+        default: standard
+        options: [standard, shanjian]
       release_env:
         description: 后端环境，地址读取源码配置
         required: true
@@ -324,9 +329,10 @@ jobs:
         run: |
           set -euo pipefail
           tag="mobile-v${MOBILE_VERSION}-${MOBILE_BUILD_NUMBER}-${MOBILE_RELEASE_ENV}"
+          if [[ "$EXPO_PUBLIC_CUSTOMER_MODE" == "shanjian" ]]; then tag="$tag-shanjian"; fi
           if ! gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-              --title "Mobile ${MOBILE_VERSION} (${MOBILE_BUILD_NUMBER}) ${MOBILE_RELEASE_ENV}" \
+              --title "Mobile ${EXPO_PUBLIC_CUSTOMER_MODE} ${MOBILE_VERSION} (${MOBILE_BUILD_NUMBER}) ${MOBILE_RELEASE_ENV}" \
               --notes "源码提交：${MOBILE_SOURCE_SHA}；构建：${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           fi
           gh release upload "$tag" dist/* --repo "$GITHUB_REPOSITORY"

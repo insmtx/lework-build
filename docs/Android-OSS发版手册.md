@@ -26,6 +26,7 @@ Android 更新需保持包名和签名身份不变。请使用此前发行版本
 | 流水线分支 | `main` |
 | `ref` | 应用源码分支、tag 或完整 SHA；不是流水线仓库分支 |
 | `build_target` | `android-apk` |
+| `customer_mode` | 默认 `standard`，陕建选 `shanjian` |
 | `release_env` | `production`，连接生产后端 |
 | `version` | 如 `0.1.18`；使用 `mobile-vX.Y.Z` 或 `vX.Y.Z` tag 时可自动提取 |
 | `build_number` | 大于此前发行包的正整数。无商店账号时必须填写；留空会尝试查询商店 |
@@ -35,6 +36,8 @@ Android 更新需保持包名和签名身份不变。请使用此前发行版本
 | `publish_apk` | 不勾选；这是原 R2 发布功能 |
 | `submit` | 不勾选；这是 Play/TestFlight 商店上传功能 |
 | `play_track` | 保持默认 `internal`；未提交商店时不生效 |
+
+下文路径以通用版为例。陕建 APK 和清单位于 `mobile/lework/shanjian/<环境>/`。发布时需确保该路径支持上传和下载校验。现有官网与 App 更新服务仍读取通用版清单。
 
 选择 ref 前确认代码已推送到远程源码仓库。推荐使用明确的版本 tag 或完整提交 SHA，便于追溯。
 

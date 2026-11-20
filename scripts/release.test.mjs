@@ -35,6 +35,23 @@ test('四个构建目标使用同一语义版本，包名按平台读取', async
     assert.equal(release.artifact_group, 'mobile-38272170658');
   }
 });
+test('陕建构建透传版本到两个平台并隔离安装包和归档', async () => {
+  for (const target of ['android-apk', 'android-play', 'ios-adhoc', 'ios-store']) {
+    const inputs = { ...request, build_target: target };
+    const standard = await resolveRelease(inputs, environment());
+    const customer = await resolveRelease({ client_payload: { ...inputs, customer_mode: 'shanjian' } }, environment());
+    assert.equal(customer.bundle_id, standard.bundle_id);
+    assert.equal(customer.customer_mode, 'shanjian');
+    assert.equal(customer.public_env.EXPO_PUBLIC_CUSTOMER_MODE, 'shanjian');
+    assert.equal(customer.artifact_name, standard.artifact_name.replace('-', '-shanjian-'));
+    assert.equal(customer.artifact_group, 'mobile-shanjian-38272170658');
+    if (target === 'android-apk') {
+      assert.equal(r2Keys(customer).latest, 'mobile/appUpdate/shanjian/production/mobile_Android_latest.apk');
+      assert.notEqual(r2Keys(customer).object, r2Keys(standard).object);
+    }
+  }
+  assert.throws(() => normalizeRequest({ ...request, customer_mode: 'unknown' }), /customer_mode/);
+});
 test('兼容标准 repository_dispatch 的 Android/iOS 事件字段', () => {
   assert.equal(normalizeRequest({ action: 'mobile-android-release', client_payload: { ref: request.ref, artifact_type: 'apk' } }).build_target, 'android-apk');
   assert.equal(normalizeRequest({ action: 'mobile-ios-release', client_payload: { ref: request.ref } }).build_target, 'ios-store');
@@ -43,7 +60,7 @@ test('生产渠道可以编入 test 后端，保留原版渠道/后端分离语�
   const release = await resolveRelease({ ...request, release_env: 'test' }, environment());
   assert.equal(release.public_env.EXPO_PUBLIC_APP_CHANNEL, 'production');
   assert.equal(release.public_env.EXPO_PUBLIC_RELEASE_ENV, 'test');
-  assert.deepEqual(release.public_env, { EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: 'test' });
+  assert.deepEqual(release.public_env, { EXPO_PUBLIC_CUSTOMER_MODE: 'standard', EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: 'test' });
   assert.match(release.artifact_name, /-android-test(?:-|\.)/);
 });
 test('tag 版本和显式版本冲突时拒绝；branch 必须显式版本', () => {
@@ -107,7 +124,7 @@ test('Android 首包只要求源码访问、包名和签名，不要求 iOS 或�
   assert.deepEqual(missingConfiguration(env, { target: 'android-apk', buildNumber: '101' }), []);
   const release = await resolveRelease(request, env);
   assert.equal(release.bundle_id, env.ANDROID_PACKAGE_NAME);
-  assert.deepEqual(release.public_env, { EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: 'production' });
+  assert.deepEqual(release.public_env, { EXPO_PUBLIC_CUSTOMER_MODE: 'standard', EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: 'production' });
 });
 
 

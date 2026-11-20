@@ -23,7 +23,11 @@ if endpoint not in ('https://oss-cn-hangzhou.aliyuncs.com', 'https://oss-acceler
 print(f'OSS upload endpoint: {endpoint}', flush=True)
 bucket = oss2.Bucket(oss2.Auth(os.environ['OSS_ACCESS_KEY_ID'], os.environ['OSS_ACCESS_KEY_SECRET']),
                      endpoint, 'lework-saas', connect_timeout=60)
-root = f"mobile/lework/{manifest['release_env']}"
+mode = manifest.get('customer_mode', 'standard')
+if mode not in ('standard', 'shanjian'):
+    raise ValueError('Unknown customer mode')
+mode_path = '/shanjian' if mode == 'shanjian' else ''
+root = f"mobile/lework{mode_path}/{manifest['release_env']}"
 key = f'{root}/{name}'
 print(f'Checking existing object: {key}', flush=True)
 if bucket.object_exists(key) and hashlib.sha256(bucket.get_object(key).read()).hexdigest() != manifest['sha256']:

@@ -63,6 +63,8 @@ export function normalizeRequest(event) {
   const target = input.target || 'production';
   if (!['internal', 'external', 'production'].includes(target)) throw new Error('target 须为 internal/external/production');
   if (buildTarget.startsWith('ios') && target !== 'production') throw new Error('iOS target=production；Ad Hoc 由 build_target=ios-adhoc 选择');
+  const customerMode = input.customer_mode ?? 'standard';
+  if (!['standard', 'shanjian'].includes(customerMode)) throw new Error('customer_mode 须为 standard/shanjian');
   const releaseEnv = input.release_env || 'production';
   if (!['test', 'production'].includes(releaseEnv)) throw new Error('release_env 须为 test/production');
   const submit = booleanValue(input.submit);
@@ -73,7 +75,7 @@ export function normalizeRequest(event) {
   const offset = String(input.build_number_offset || '0');
   if (!/^(0|[1-9]\d*)$/.test(offset) || !Number.isSafeInteger(Number(offset))) throw new Error('build_number_offset 须为非负整数');
   return {
-    source_ref: sourceRef, build_target: buildTarget, target, version, release_env: releaseEnv,
+    customer_mode: customerMode, source_ref: sourceRef, build_target: buildTarget, target, version, release_env: releaseEnv,
     build_number: input.build_number ? positiveBuildNumber(input.build_number) : '',
     build_number_offset: Number(offset),
     publish_apk: booleanValue(input.publish_apk), submit, play_track: playTrack,
@@ -89,16 +91,17 @@ export async function resolveRelease(event, env = process.env) {
   const buildNumber = request.build_number || positiveBuildNumber(await resolveStoreBuildNumber({
     platform, offset: request.build_number_offset, env,
   }));
+  const modeSuffix = request.customer_mode === 'shanjian' ? '-shanjian' : '';
   const artifactType = request.build_target === 'android-apk' ? 'apk' : request.build_target === 'android-play' ? 'aab' : 'ipa';
   return {
     schema: 1, ...request, build_number: buildNumber, platform, artifact_type: artifactType,
     bundle_id: bundleId, source_repository: env.SOURCE_GIT_URL,
     artifact_name: artifactType === 'apk'
-      ? `lework-${request.version}-${buildNumber}-android${request.release_env === 'test' ? '-test' : ''}${request.target === 'production' ? '' : `-${request.target}`}.apk`
-      : `mobile-${request.version}-${buildNumber}-${request.release_env}-${request.build_target}-${request.target}.${artifactType}`,
-    artifact_group: `mobile-${env.GITHUB_RUN_ID || 'local'}`,
+      ? `lework${modeSuffix}-${request.version}-${buildNumber}-android${request.release_env === 'test' ? '-test' : ''}${request.target === 'production' ? '' : `-${request.target}`}.apk`
+      : `mobile${modeSuffix}-${request.version}-${buildNumber}-${request.release_env}-${request.build_target}-${request.target}.${artifactType}`,
+    artifact_group: `mobile${modeSuffix}-${env.GITHUB_RUN_ID || 'local'}`,
     gradle_task: artifactType === 'apk' ? 'assembleRelease' : 'bundleRelease',
-    public_env: { EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: request.release_env },
+    public_env: { EXPO_PUBLIC_CUSTOMER_MODE: request.customer_mode, EXPO_PUBLIC_APP_CHANNEL: 'production', EXPO_PUBLIC_RELEASE_ENV: request.release_env },
     run_id: env.GITHUB_RUN_ID || 'local', pipeline_sha: env.GITHUB_SHA || '', actor: env.GITHUB_ACTOR || '',
   };
 }
